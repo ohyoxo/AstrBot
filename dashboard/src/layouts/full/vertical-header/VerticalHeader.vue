@@ -208,9 +208,12 @@ function handleUpdateClick() {
   updateStatusDialog.value = true;
 }
 
-// Keep this rule aligned with astrbot/core/zip_updator.py.
-const PRE_RELEASE_TAG_REGEX = /[\-_.]?(alpha|beta|rc|dev|nightly|pre|preview)[\-_.]?\d*$/i;
-const isPreRelease = (version: string) => PRE_RELEASE_TAG_REGEX.test(version);
+// 检测是否为预发布版本
+const isPreRelease = (version: string) => {
+  const preReleaseKeywords = ['alpha', 'beta', 'rc', 'pre', 'preview', 'dev'];
+  const lowerVersion = version.toLowerCase();
+  return preReleaseKeywords.some(keyword => lowerVersion.includes(keyword));
+};
 
 // 账户修改
 function accountEdit() {
