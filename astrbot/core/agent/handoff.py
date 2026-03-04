@@ -1,8 +1,11 @@
+from typing import Generic
+
 from .agent import Agent
+from .run_context import TContext
 from .tool import FunctionTool
 
 
-class HandoffTool[TContext](FunctionTool):
+class HandoffTool(FunctionTool, Generic[TContext]):
     """Handoff tool for delegating tasks to another agent."""
 
     def __init__(

@@ -1,8 +1,6 @@
-import asyncio
 import codecs
 import json
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from typing import Any
 
 from aiohttp import ClientResponse, ClientSession, FormData
@@ -49,20 +47,20 @@ class DifyAPIClient:
         response_mode: str = "streaming",
         conversation_id: str = "",
         files: list[dict[str, Any]] | None = None,
-        timeout_seconds: float = 60,
+        timeout: float = 60,
     ) -> AsyncGenerator[dict[str, Any], None]:
         if files is None:
             files = []
         url = f"{self.api_base}/chat-messages"
         payload = locals()
         payload.pop("self")
-        payload.pop("timeout_seconds")
+        payload.pop("timeout")
         logger.info(f"chat_messages payload: {payload}")
         async with self.session.post(
             url,
             json=payload,
             headers=self.headers,
-            timeout=timeout_seconds,
+            timeout=timeout,
         ) as resp:
             if resp.status != 200:
                 text = await resp.text()
@@ -78,20 +76,20 @@ class DifyAPIClient:
         user: str,
         response_mode: str = "streaming",
         files: list[dict[str, Any]] | None = None,
-        timeout_seconds: float = 60,
+        timeout: float = 60,
     ):
         if files is None:
             files = []
         url = f"{self.api_base}/workflows/run"
         payload = locals()
         payload.pop("self")
-        payload.pop("timeout_seconds")
+        payload.pop("timeout")
         logger.info(f"workflow_run payload: {payload}")
         async with self.session.post(
             url,
             json=payload,
             headers=self.headers,
-            timeout=timeout_seconds,
+            timeout=timeout,
         ) as resp:
             if resp.status != 200:
                 text = await resp.text()
@@ -136,13 +134,14 @@ class DifyAPIClient:
             # 使用文件路径
             import os
 
-            file_content = await asyncio.to_thread(Path(file_path).read_bytes)
-            form.add_field(
-                "file",
-                file_content,
-                filename=os.path.basename(file_path),
-                content_type=mime_type or "application/octet-stream",
-            )
+            with open(file_path, "rb") as f:
+                file_content = f.read()
+                form.add_field(
+                    "file",
+                    file_content,
+                    filename=os.path.basename(file_path),
+                    content_type=mime_type or "application/octet-stream",
+                )
         else:
             raise ValueError("file_path 和 file_data 不能同时为 None")
 

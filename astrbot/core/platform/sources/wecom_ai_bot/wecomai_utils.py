@@ -2,6 +2,7 @@
 提供常量定义、工具函数和辅助方法
 """
 
+import asyncio
 import base64
 import hashlib
 import secrets
@@ -173,7 +174,7 @@ async def process_encrypted_image(
                 response.raise_for_status()
                 encrypted_data = await response.read()
         logger.info("图片下载成功，大小: %d 字节", len(encrypted_data))
-    except (TimeoutError, aiohttp.ClientError) as e:
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
         error_msg = f"下载图片失败: {e!s}"
         logger.error(error_msg)
         return False, error_msg

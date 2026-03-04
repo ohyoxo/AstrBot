@@ -7,7 +7,7 @@ from astrbot.core.provider.entities import LLMResponse
 
 from ..hooks import BaseAgentRunHooks
 from ..response import AgentResponse
-from ..run_context import ContextWrapper
+from ..run_context import ContextWrapper, TContext
 
 
 class AgentState(Enum):
@@ -19,7 +19,7 @@ class AgentState(Enum):
     ERROR = auto()  # Error state
 
 
-class BaseAgentRunner[TContext]:
+class BaseAgentRunner(T.Generic[TContext]):
     @abc.abstractmethod
     async def reset(
         self,

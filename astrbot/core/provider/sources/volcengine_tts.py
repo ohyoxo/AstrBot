@@ -4,7 +4,6 @@ import json
 import os
 import traceback
 import uuid
-from pathlib import Path
 
 import aiohttp
 
@@ -101,9 +100,10 @@ class ProviderVolcengineTTS(TTSProvider):
                             f"volcengine_tts_{uuid.uuid4()}.mp3",
                         )
 
-                        await asyncio.to_thread(
-                            Path(file_path).write_bytes,
-                            audio_data,
+                        loop = asyncio.get_running_loop()
+                        await loop.run_in_executor(
+                            None,
+                            lambda: open(file_path, "wb").write(audio_data),
                         )
 
                         return file_path

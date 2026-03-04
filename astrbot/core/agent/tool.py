@@ -1,6 +1,6 @@
 import copy
 from collections.abc import AsyncGenerator, Awaitable, Callable
-from typing import Any
+from typing import Any, Generic
 
 import jsonschema
 import mcp
@@ -10,7 +10,7 @@ from pydantic.dataclasses import dataclass
 
 from astrbot.core.message.message_event_result import MessageEventResult
 
-from .run_context import ContextWrapper
+from .run_context import ContextWrapper, TContext
 
 ParametersType = dict[str, Any]
 ToolExecResult = str | mcp.types.CallToolResult
@@ -38,7 +38,7 @@ class ToolSchema:
 
 
 @dataclass
-class FunctionTool[TContext](ToolSchema):
+class FunctionTool(ToolSchema, Generic[TContext]):
     """A callable tool, for function calling."""
 
     handler: (

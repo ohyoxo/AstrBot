@@ -1,9 +1,9 @@
 import asyncio
 import os
+import sys
 import uuid
 from collections.abc import Awaitable, Callable
-from pathlib import Path
-from typing import Any, cast, override
+from typing import Any, cast
 
 import quart
 from requests import Response
@@ -32,6 +32,11 @@ from astrbot.core.utils.webhook_utils import log_webhook_info
 from .wecom_event import WecomPlatformEvent
 from .wecom_kf import WeChatKF
 from .wecom_kf_message import WeChatKFMessage
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 class WecomServer:
@@ -341,7 +346,8 @@ class WecomPlatformAdapter(Platform):
             )
             temp_dir = get_astrbot_temp_path()
             path = os.path.join(temp_dir, f"wecom_{msg.media_id}.amr")
-            await asyncio.to_thread(Path(path).write_bytes, resp.content)
+            with open(path, "wb") as f:
+                f.write(resp.content)
 
             try:
                 path_wav = os.path.join(temp_dir, f"wecom_{msg.media_id}.wav")
@@ -396,7 +402,8 @@ class WecomPlatformAdapter(Platform):
             )
             temp_dir = get_astrbot_temp_path()
             path = os.path.join(temp_dir, f"weixinkefu_{media_id}.jpg")
-            await asyncio.to_thread(Path(path).write_bytes, resp.content)
+            with open(path, "wb") as f:
+                f.write(resp.content)
             abm.message = [Image(file=path, url=path)]
         elif msgtype == "voice":
             media_id = msg.get("voice", {}).get("media_id", "")
@@ -408,7 +415,8 @@ class WecomPlatformAdapter(Platform):
 
             temp_dir = get_astrbot_temp_path()
             path = os.path.join(temp_dir, f"weixinkefu_{media_id}.amr")
-            await asyncio.to_thread(Path(path).write_bytes, resp.content)
+            with open(path, "wb") as f:
+                f.write(resp.content)
 
             try:
                 path_wav = os.path.join(temp_dir, f"weixinkefu_{media_id}.wav")

@@ -130,7 +130,7 @@ class KookPlatformAdapter(Platform):
                             await asyncio.wait_for(
                                 self.client.wait_until_closed(), timeout=1.0
                             )
-                        except TimeoutError:
+                        except asyncio.TimeoutError:
                             # 正常超时，继续下一轮 while 检查
                             continue
 

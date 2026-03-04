@@ -32,18 +32,6 @@ CHUNK_SIZE = 1024 * 1024  # 1MB
 UPLOAD_EXPIRE_SECONDS = 3600  # 上传会话过期时间（1小时）
 
 
-def _merge_backup_chunks(output_path: str, chunk_dir: str, total: int) -> None:
-    with open(output_path, "wb") as outfile:
-        for i in range(total):
-            chunk_path = os.path.join(chunk_dir, f"{i}.part")
-            with open(chunk_path, "rb") as chunk_file:
-                while True:
-                    data_block = chunk_file.read(8192)
-                    if not data_block:
-                        break
-                    outfile.write(data_block)
-
-
 def secure_filename(filename: str) -> str:
     """清洗文件名，移除路径遍历字符和危险字符
 
@@ -252,7 +240,7 @@ class BackupRoute(Route):
         if upload_id in self.upload_sessions:
             session = self.upload_sessions[upload_id]
             chunk_dir = session.get("chunk_dir")
-            if chunk_dir and await asyncio.to_thread(os.path.exists, chunk_dir):
+            if chunk_dir and os.path.exists(chunk_dir):
                 try:
                     shutil.rmtree(chunk_dir)
                 except Exception as e:
@@ -295,9 +283,7 @@ class BackupRoute(Route):
             page_size = request.args.get("page_size", 20, type=int)
 
             # 确保备份目录存在
-            await asyncio.to_thread(
-                Path(self.backup_dir).mkdir, parents=True, exist_ok=True
-            )
+            Path(self.backup_dir).mkdir(parents=True, exist_ok=True)
 
             # 获取所有备份文件
             backup_files = []
@@ -307,7 +293,7 @@ class BackupRoute(Route):
                     continue
 
                 file_path = os.path.join(self.backup_dir, filename)
-                if not await asyncio.to_thread(os.path.isfile, file_path):
+                if not os.path.isfile(file_path):
                     continue
 
                 # 读取 manifest.json 获取备份信息
@@ -417,7 +403,7 @@ class BackupRoute(Route):
                 result={
                     "filename": os.path.basename(zip_path),
                     "path": zip_path,
-                    "size": await asyncio.to_thread(os.path.getsize, zip_path),
+                    "size": os.path.getsize(zip_path),
                 },
             )
         except Exception as e:
@@ -451,9 +437,7 @@ class BackupRoute(Route):
             unique_filename = generate_unique_filename(safe_filename)
 
             # 保存上传的文件
-            await asyncio.to_thread(
-                Path(self.backup_dir).mkdir, parents=True, exist_ok=True
-            )
+            Path(self.backup_dir).mkdir(parents=True, exist_ok=True)
             zip_path = os.path.join(self.backup_dir, unique_filename)
             await file.save(zip_path)
 
@@ -467,7 +451,7 @@ class BackupRoute(Route):
                     {
                         "filename": unique_filename,
                         "original_filename": file.filename,
-                        "size": await asyncio.to_thread(os.path.getsize, zip_path),
+                        "size": os.path.getsize(zip_path),
                     }
                 )
                 .__dict__
@@ -515,7 +499,7 @@ class BackupRoute(Route):
 
             # 创建分片存储目录
             chunk_dir = os.path.join(self.chunks_dir, upload_id)
-            await asyncio.to_thread(Path(chunk_dir).mkdir, parents=True, exist_ok=True)
+            Path(chunk_dir).mkdir(parents=True, exist_ok=True)
 
             # 清洗文件名
             safe_filename = secure_filename(filename)
@@ -701,20 +685,22 @@ class BackupRoute(Route):
             chunk_dir = session["chunk_dir"]
             filename = session["filename"]
 
-            await asyncio.to_thread(
-                Path(self.backup_dir).mkdir, parents=True, exist_ok=True
-            )
+            Path(self.backup_dir).mkdir(parents=True, exist_ok=True)
             output_path = os.path.join(self.backup_dir, filename)
 
             try:
-                await asyncio.to_thread(
-                    _merge_backup_chunks,
-                    output_path,
-                    chunk_dir,
-                    total,
-                )
+                with open(output_path, "wb") as outfile:
+                    for i in range(total):
+                        chunk_path = os.path.join(chunk_dir, f"{i}.part")
+                        with open(chunk_path, "rb") as chunk_file:
+                            # 分块读取，避免内存溢出
+                            while True:
+                                data_block = chunk_file.read(8192)
+                                if not data_block:
+                                    break
+                                outfile.write(data_block)
 
-                file_size = await asyncio.to_thread(os.path.getsize, output_path)
+                file_size = os.path.getsize(output_path)
 
                 # 标记备份为上传来源（修改 manifest.json 中的 origin 字段）
                 self._mark_backup_as_uploaded(output_path)
@@ -739,7 +725,7 @@ class BackupRoute(Route):
                 )
             except Exception as e:
                 # 如果合并失败，删除不完整的文件
-                if await asyncio.to_thread(os.path.exists, output_path):
+                if os.path.exists(output_path):
                     os.remove(output_path)
                 raise e
 
@@ -801,7 +787,7 @@ class BackupRoute(Route):
                 return Response().error("无效的文件名").__dict__
 
             zip_path = os.path.join(self.backup_dir, filename)
-            if not await asyncio.to_thread(os.path.exists, zip_path):
+            if not os.path.exists(zip_path):
                 return Response().error(f"备份文件不存在: {filename}").__dict__
 
             # 获取知识库管理器（用于构造 importer）
@@ -855,7 +841,7 @@ class BackupRoute(Route):
                 return Response().error("无效的文件名").__dict__
 
             zip_path = os.path.join(self.backup_dir, filename)
-            if not await asyncio.to_thread(os.path.exists, zip_path):
+            if not os.path.exists(zip_path):
                 return Response().error(f"备份文件不存在: {filename}").__dict__
 
             # 生成任务ID
@@ -1002,7 +988,7 @@ class BackupRoute(Route):
                 return Response().error("无效的文件名").__dict__
 
             file_path = os.path.join(self.backup_dir, filename)
-            if not await asyncio.to_thread(os.path.exists, file_path):
+            if not os.path.exists(file_path):
                 return Response().error("备份文件不存在").__dict__
 
             return await send_file(
@@ -1033,7 +1019,7 @@ class BackupRoute(Route):
                 return Response().error("无效的文件名").__dict__
 
             file_path = os.path.join(self.backup_dir, filename)
-            if not await asyncio.to_thread(os.path.exists, file_path):
+            if not os.path.exists(file_path):
                 return Response().error("备份文件不存在").__dict__
 
             os.remove(file_path)
@@ -1081,12 +1067,12 @@ class BackupRoute(Route):
 
             # 检查原文件是否存在
             old_path = os.path.join(self.backup_dir, filename)
-            if not await asyncio.to_thread(os.path.exists, old_path):
+            if not os.path.exists(old_path):
                 return Response().error("备份文件不存在").__dict__
 
             # 检查新文件名是否已存在
             new_path = os.path.join(self.backup_dir, new_filename)
-            if await asyncio.to_thread(os.path.exists, new_path):
+            if os.path.exists(new_path):
                 return Response().error(f"文件名 '{new_filename}' 已存在").__dict__
 
             # 执行重命名

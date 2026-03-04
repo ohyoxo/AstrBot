@@ -1,8 +1,6 @@
-import asyncio
 import os
 import re
 import uuid
-from pathlib import Path
 from typing import Annotated, Literal
 
 import ormsgpack
@@ -161,10 +159,9 @@ class ProviderFishAudioTTSAPI(TTSProvider):
             if response.status_code == 200 and response.headers.get(
                 "content-type", ""
             ).startswith("audio/"):
-                audio_data = bytearray()
-                async for chunk in response.aiter_bytes():
-                    audio_data.extend(chunk)
-                await asyncio.to_thread(Path(path).write_bytes, bytes(audio_data))
+                with open(path, "wb") as f:
+                    async for chunk in response.aiter_bytes():
+                        f.write(chunk)
                 return path
             error_bytes = await response.aread()
             error_text = error_bytes.decode("utf-8", errors="replace")[:1024]

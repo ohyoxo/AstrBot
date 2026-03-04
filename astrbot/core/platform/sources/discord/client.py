@@ -1,9 +1,14 @@
+import sys
 from collections.abc import Awaitable, Callable
-from typing import override
 
 import discord
 
 from astrbot import logger
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 # Discord Bot客户端

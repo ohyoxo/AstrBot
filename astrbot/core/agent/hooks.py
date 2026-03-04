@@ -1,12 +1,14 @@
+from typing import Generic
+
 import mcp
 
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.provider.entities import LLMResponse
 
-from .run_context import ContextWrapper
+from .run_context import ContextWrapper, TContext
 
 
-class BaseAgentRunHooks[TContext]:
+class BaseAgentRunHooks(Generic[TContext]):
     async def on_agent_begin(self, run_context: ContextWrapper[TContext]) -> None: ...
     async def on_tool_start(
         self,

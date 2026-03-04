@@ -1,7 +1,6 @@
 import asyncio
 import os
 import uuid
-from pathlib import Path
 from typing import cast
 
 import whisper
@@ -43,7 +42,9 @@ class ProviderOpenAIWhisperSelfHost(STTProvider):
 
     async def _is_silk_file(self, file_path) -> bool:
         silk_header = b"SILK"
-        file_header = (await asyncio.to_thread(Path(file_path).read_bytes))[:8]
+        with open(file_path, "rb") as f:
+            file_header = f.read(8)
+
         if silk_header in file_header:
             return True
         return False
@@ -65,7 +66,7 @@ class ProviderOpenAIWhisperSelfHost(STTProvider):
             await download_file(audio_url, path)
             audio_url = path
 
-        if not await asyncio.to_thread(os.path.exists, audio_url):
+        if not os.path.exists(audio_url):
             raise FileNotFoundError(f"文件不存在: {audio_url}")
 
         if audio_url.endswith(".amr") or audio_url.endswith(".silk") or is_tencent:

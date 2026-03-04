@@ -2,7 +2,7 @@ import asyncio
 import threading
 import typing as T
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import CursorResult, Row
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -633,7 +633,7 @@ class SQLiteDatabase(BaseDatabase):
         """Get an active API key by hash (not revoked, not expired)."""
         async with self.get_db() as session:
             session: AsyncSession
-            now = datetime.now(UTC)
+            now = datetime.now(timezone.utc)
             query = select(ApiKey).where(
                 ApiKey.key_hash == key_hash,
                 col(ApiKey.revoked_at).is_(None),
@@ -650,7 +650,7 @@ class SQLiteDatabase(BaseDatabase):
                 await session.execute(
                     update(ApiKey)
                     .where(col(ApiKey.key_id) == key_id)
-                    .values(last_used_at=datetime.now(UTC)),
+                    .values(last_used_at=datetime.now(timezone.utc)),
                 )
 
     async def revoke_api_key(self, key_id: str) -> bool:
@@ -661,7 +661,7 @@ class SQLiteDatabase(BaseDatabase):
                 query = (
                     update(ApiKey)
                     .where(col(ApiKey.key_id) == key_id)
-                    .values(revoked_at=datetime.now(UTC))
+                    .values(revoked_at=datetime.now(timezone.utc))
                 )
                 result = T.cast(CursorResult, await session.execute(query))
                 return result.rowcount > 0
@@ -1534,7 +1534,7 @@ class SQLiteDatabase(BaseDatabase):
         async with self.get_db() as session:
             session: AsyncSession
             async with session.begin():
-                values: dict[str, T.Any] = {"updated_at": datetime.now(UTC)}
+                values: dict[str, T.Any] = {"updated_at": datetime.now(timezone.utc)}
                 if display_name is not None:
                     values["display_name"] = display_name
 
@@ -1622,7 +1622,7 @@ class SQLiteDatabase(BaseDatabase):
         async with self.get_db() as session:
             session: AsyncSession
             async with session.begin():
-                values: dict[str, T.Any] = {"updated_at": datetime.now(UTC)}
+                values: dict[str, T.Any] = {"updated_at": datetime.now(timezone.utc)}
                 if title is not None:
                     values["title"] = title
                 if emoji is not None:

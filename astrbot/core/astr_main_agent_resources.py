@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import json
 import os
@@ -242,7 +241,7 @@ class SendMessageToUserTool(FunctionTool[AstrAgentContext]):
 
         bool: indicates whether the file was downloaded from sandbox.
         """
-        if await asyncio.to_thread(os.path.exists, path):
+        if os.path.exists(path):
             return path, False
 
         # Try to check if the file exists in the sandbox

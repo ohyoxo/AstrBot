@@ -1,7 +1,6 @@
 import asyncio
 import os
 import uuid
-from pathlib import Path
 
 import aiohttp
 
@@ -130,7 +129,8 @@ class ProviderGSVTTS(TTSProvider):
 
         result = await self._make_request(endpoint, params)
         if isinstance(result, bytes):
-            await asyncio.to_thread(Path(path).write_bytes, result)
+            with open(path, "wb") as f:
+                f.write(result)
             return path
         raise Exception(f"[GSV TTS] 合成失败，输入文本：{text}，错误信息：{result}")
 

@@ -1,4 +1,3 @@
-import asyncio
 import json
 import mimetypes
 import shutil
@@ -140,15 +139,13 @@ async def parse_webchat_message_parts(
             continue
 
         file_path = Path(str(path))
-        if verify_media_path_exists and not await asyncio.to_thread(file_path.exists):
+        if verify_media_path_exists and not file_path.exists():
             if strict:
                 raise ValueError(f"file not found: {file_path!s}")
             continue
 
         file_path_str = (
-            str(await asyncio.to_thread(file_path.resolve))
-            if verify_media_path_exists
-            else str(file_path)
+            str(file_path.resolve()) if verify_media_path_exists else str(file_path)
         )
         has_content = True
         if part_type == "image":
@@ -369,7 +366,7 @@ async def message_chain_to_storage_message_parts(
     attachments_dir: str | Path,
 ) -> list[dict]:
     target_dir = Path(attachments_dir)
-    await asyncio.to_thread(target_dir.mkdir, parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     parts: list[dict] = []
     for comp in message_chain.chain:
@@ -445,9 +442,7 @@ async def _copy_file_to_attachment_part(
     display_name: str | None = None,
 ) -> dict | None:
     src_path = Path(file_path)
-    if not await asyncio.to_thread(src_path.exists) or not await asyncio.to_thread(
-        src_path.is_file
-    ):
+    if not src_path.exists() or not src_path.is_file():
         return None
 
     suffix = src_path.suffix

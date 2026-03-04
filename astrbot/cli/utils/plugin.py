@@ -1,6 +1,6 @@
 import shutil
 import tempfile
-from enum import StrEnum
+from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
@@ -12,7 +12,7 @@ import yaml
 from .version_comparator import VersionComparator
 
 
-class PluginStatus(StrEnum):
+class PluginStatus(str, Enum):
     INSTALLED = "installed"
     NEED_UPDATE = "needs-update"
     NOT_INSTALLED = "not-installed"

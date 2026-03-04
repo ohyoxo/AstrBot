@@ -3,7 +3,6 @@ import re
 import time
 import traceback
 from collections.abc import AsyncGenerator
-from pathlib import Path
 
 from astrbot.core import logger
 from astrbot.core.agent.message import Message
@@ -510,7 +509,8 @@ async def _simulated_stream_tts(
                 audio_path = await tts_provider.get_audio(text)
 
                 if audio_path:
-                    audio_data = await asyncio.to_thread(Path(audio_path).read_bytes)
+                    with open(audio_path, "rb") as f:
+                        audio_data = f.read()
                     await audio_queue.put((text, audio_data))
             except Exception as e:
                 logger.error(

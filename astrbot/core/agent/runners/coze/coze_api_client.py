@@ -2,7 +2,6 @@ import asyncio
 import io
 import json
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -91,7 +90,7 @@ class CozeAPIClient:
                 logger.debug(f"[Coze] 图片上传成功，file_id: {file_id}")
                 return file_id
 
-        except TimeoutError:
+        except asyncio.TimeoutError:
             logger.error("文件上传超时")
             raise Exception("文件上传超时")
         except Exception as e:
@@ -129,7 +128,7 @@ class CozeAPIClient:
         conversation_id: str | None = None,
         auto_save_history: bool = True,
         stream: bool = True,
-        timeout_seconds: float = 120,
+        timeout: float = 120,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """发送聊天消息并返回流式响应
 
@@ -140,7 +139,7 @@ class CozeAPIClient:
             conversation_id: 会话ID
             auto_save_history: 是否自动保存历史
             stream: 是否流式响应
-            timeout_seconds: 超时时间
+            timeout: 超时时间
 
         """
         session = await self._ensure_session()
@@ -167,7 +166,7 @@ class CozeAPIClient:
                 url,
                 json=payload,
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
+                timeout=aiohttp.ClientTimeout(total=timeout),
             ) as response:
                 if response.status == 401:
                     raise Exception("Coze API 认证失败，请检查 API Key 是否正确")
@@ -204,8 +203,8 @@ class CozeAPIClient:
                                     except json.JSONDecodeError:
                                         event_data = {"content": data_str}
 
-        except TimeoutError:
-            raise Exception(f"Coze API 流式请求超时 ({timeout_seconds}秒)")
+        except asyncio.TimeoutError:
+            raise Exception(f"Coze API 流式请求超时 ({timeout}秒)")
         except Exception as e:
             raise Exception(f"Coze API 流式请求失败: {e!s}")
 
@@ -237,7 +236,7 @@ class CozeAPIClient:
                 except json.JSONDecodeError:
                     raise Exception("Coze API 返回非JSON格式")
 
-        except TimeoutError:
+        except asyncio.TimeoutError:
             raise Exception("Coze API 请求超时")
         except aiohttp.ClientError as e:
             raise Exception(f"Coze API 请求失败: {e!s}")
@@ -295,7 +294,8 @@ if __name__ == "__main__":
         client = CozeAPIClient(api_key=api_key)
 
         try:
-            file_data = await asyncio.to_thread(Path("README.md").read_bytes)
+            with open("README.md", "rb") as f:
+                file_data = f.read()
             file_id = await client.upload_file(file_data)
             print(f"Uploaded file_id: {file_id}")
             async for event in client.chat_messages(

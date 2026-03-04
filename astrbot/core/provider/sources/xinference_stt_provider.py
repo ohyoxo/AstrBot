@@ -1,7 +1,5 @@
-import asyncio
 import os
 import uuid
-from pathlib import Path
 
 import aiohttp
 from xinference_client.client.restful.async_restful_client import (
@@ -104,8 +102,9 @@ class ProviderXinferenceSTT(STTProvider):
                                 f"Failed to download audio from {audio_url}, status: {resp.status}",
                             )
                             return ""
-            elif await asyncio.to_thread(os.path.exists, audio_url):
-                audio_bytes = await asyncio.to_thread(Path(audio_url).read_bytes)
+            elif os.path.exists(audio_url):
+                with open(audio_url, "rb") as f:
+                    audio_bytes = f.read()
             else:
                 logger.error(f"File not found: {audio_url}")
                 return ""
@@ -144,7 +143,8 @@ class ProviderXinferenceSTT(STTProvider):
                 )
                 temp_files.extend([input_path, output_path])
 
-                await asyncio.to_thread(Path(input_path).write_bytes, audio_bytes)
+                with open(input_path, "wb") as f:
+                    f.write(audio_bytes)
 
                 if conversion_type == "silk":
                     logger.info("Converting silk to wav ...")
@@ -153,7 +153,8 @@ class ProviderXinferenceSTT(STTProvider):
                     logger.info("Converting amr to wav ...")
                     await convert_to_pcm_wav(input_path, output_path)
 
-                audio_bytes = await asyncio.to_thread(Path(output_path).read_bytes)
+                with open(output_path, "rb") as f:
+                    audio_bytes = f.read()
 
             # 4. Transcribe
             # 官方asyncCLient的客户端似乎实现有点问题，这里直接用aiohttp实现openai标准兼容请求，提交issue等待官方修复后再改回来
@@ -198,7 +199,7 @@ class ProviderXinferenceSTT(STTProvider):
             # 5. Cleanup
             for temp_file in temp_files:
                 try:
-                    if await asyncio.to_thread(os.path.exists, temp_file):
+                    if os.path.exists(temp_file):
                         os.remove(temp_file)
                         logger.debug(f"Removed temporary file: {temp_file}")
                 except Exception as e:

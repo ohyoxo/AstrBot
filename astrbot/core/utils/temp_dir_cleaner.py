@@ -141,7 +141,7 @@ class TempDirCleaner:
                     self._stop_event.wait(),
                     timeout=self.CHECK_INTERVAL_SECONDS,
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 continue
 
         logger.info("TempDirCleaner stopped.")

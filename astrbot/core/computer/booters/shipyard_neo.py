@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import shlex
-from pathlib import Path
 from typing import Any, cast
 
 from astrbot.api import logger
@@ -35,11 +33,11 @@ class NeoPythonComponent(PythonComponent):
         self,
         code: str,
         kernel_id: str | None = None,
-        timeout_seconds: int = 30,
+        timeout: int = 30,
         silent: bool = False,
     ) -> dict[str, Any]:
         _ = kernel_id  # Bay runtime does not expose kernel_id in current SDK.
-        result = await self._sandbox.python.exec(code, timeout=timeout_seconds)
+        result = await self._sandbox.python.exec(code, timeout=timeout)
         payload = _maybe_model_dump(result)
 
         output_text = payload.get("output", "") or ""
@@ -77,7 +75,7 @@ class NeoShellComponent(ShellComponent):
         command: str,
         cwd: str | None = None,
         env: dict[str, str] | None = None,
-        timeout_seconds: int | None = 30,
+        timeout: int | None = 30,
         shell: bool = True,
         background: bool = False,
     ) -> dict[str, Any]:
@@ -101,7 +99,7 @@ class NeoShellComponent(ShellComponent):
 
         result = await self._sandbox.shell.exec(
             run_command,
-            timeout=timeout_seconds or 30,
+            timeout=timeout or 30,
             cwd=cwd,
         )
         payload = _maybe_model_dump(result)
@@ -194,7 +192,7 @@ class NeoBrowserComponent(BrowserComponent):
     async def exec(
         self,
         cmd: str,
-        timeout_seconds: int = 30,
+        timeout: int = 30,
         description: str | None = None,
         tags: str | None = None,
         learn: bool = False,
@@ -202,7 +200,7 @@ class NeoBrowserComponent(BrowserComponent):
     ) -> dict[str, Any]:
         result = await self._sandbox.browser.exec(
             cmd,
-            timeout=timeout_seconds,
+            timeout=timeout,
             description=description,
             tags=tags,
             learn=learn,
@@ -213,7 +211,7 @@ class NeoBrowserComponent(BrowserComponent):
     async def exec_batch(
         self,
         commands: list[str],
-        timeout_seconds: int = 60,
+        timeout: int = 60,
         stop_on_error: bool = True,
         description: str | None = None,
         tags: str | None = None,
@@ -222,7 +220,7 @@ class NeoBrowserComponent(BrowserComponent):
     ) -> dict[str, Any]:
         result = await self._sandbox.browser.exec_batch(
             commands,
-            timeout=timeout_seconds,
+            timeout=timeout,
             stop_on_error=stop_on_error,
             description=description,
             tags=tags,
@@ -234,7 +232,7 @@ class NeoBrowserComponent(BrowserComponent):
     async def run_skill(
         self,
         skill_key: str,
-        timeout_seconds: int = 60,
+        timeout: int = 60,
         stop_on_error: bool = True,
         include_trace: bool = False,
         description: str | None = None,
@@ -242,7 +240,7 @@ class NeoBrowserComponent(BrowserComponent):
     ) -> dict[str, Any]:
         result = await self._sandbox.browser.run_skill(
             skill_key=skill_key,
-            timeout=timeout_seconds,
+            timeout=timeout,
             stop_on_error=stop_on_error,
             include_trace=include_trace,
             description=description,
@@ -470,7 +468,8 @@ class ShipyardNeoBooter(ComputerBooter):
     async def upload_file(self, path: str, file_name: str) -> dict:
         if self._sandbox is None:
             raise RuntimeError("ShipyardNeoBooter is not initialized.")
-        content = await asyncio.to_thread(Path(path).read_bytes)
+        with open(path, "rb") as f:
+            content = f.read()
         remote_path = file_name.lstrip("/")
         await self._sandbox.filesystem.upload(remote_path, content)
         logger.info("[Computer] File uploaded to Neo sandbox: %s", remote_path)
@@ -487,7 +486,8 @@ class ShipyardNeoBooter(ComputerBooter):
         local_dir = os.path.dirname(local_path)
         if local_dir:
             os.makedirs(local_dir, exist_ok=True)
-        await asyncio.to_thread(Path(local_path).write_bytes, cast(bytes, content))
+        with open(local_path, "wb") as f:
+            f.write(cast(bytes, content))
         logger.info(
             "[Computer] File downloaded from Neo sandbox: %s -> %s",
             remote_path,
