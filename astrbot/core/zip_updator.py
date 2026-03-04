@@ -3,14 +3,18 @@ import re
 import shutil
 import ssl
 import zipfile
+from json import JSONDecodeError
 from typing import NoReturn
 
 import aiohttp
 import certifi
 
 from astrbot.core import logger
+from astrbot.core.release_constants import PRERELEASE_TAG_REGEX
 from astrbot.core.utils.io import download_file, on_error
 from astrbot.core.utils.version_comparator import VersionComparator
+
+# Keep this rule aligned with dashboard/src/layouts/full/vertical-header/VerticalHeader.vue.
 
 
 class ReleaseInfo:
@@ -32,12 +36,112 @@ class ReleaseInfo:
         return f"\n{self.body}\n\n版本: {self.version} | 发布于: {self.published_at}"
 
 
+class FetchReleaseError(Exception):
+    """Expected errors while fetching release metadata from remote services."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        url: str | None = None,
+        status_code: int | None = None,
+        detail: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        self.url = url
+        self.status_code = status_code
+        self.detail = detail
+
+    def __str__(self) -> str:
+        context_parts = []
+        if self.url:
+            context_parts.append(f"url={self.url}")
+        if self.status_code is not None:
+            context_parts.append(f"status_code={self.status_code}")
+        if self.detail:
+            context_parts.append(f"detail={self.detail}")
+        if not context_parts:
+            return self.message
+        return f"{self.message} ({', '.join(context_parts)})"
+
+
 class RepoZipUpdator:
     def __init__(self, repo_mirror: str = "") -> None:
         self.repo_mirror = repo_mirror
         self.rm_on_error = on_error
 
-    async def fetch_release_info(self, url: str, latest: bool = True) -> list:
+    @staticmethod
+    def _normalize_release_payload(result: object, url: str) -> list:
+        if isinstance(result, dict):
+            releases = [result]
+        elif isinstance(result, list):
+            releases = result
+        else:
+            logger.error(
+                f"版本信息格式异常，期望列表或字典，实际为: {type(result).__name__}, url: {url}",
+            )
+            raise FetchReleaseError(
+                "版本信息格式异常",
+                url=url,
+                detail=f"top_level_type={type(result).__name__}",
+            )
+
+        if not releases:
+            return []
+
+        required_fields = (
+            "name",
+            "published_at",
+            "body",
+            "tag_name",
+            "zipball_url",
+        )
+        normalized = []
+        invalid_entry_count = 0
+        for idx, release in enumerate(releases):
+            if not isinstance(release, dict):
+                logger.warning(
+                    f"版本信息第 {idx} 项格式异常，期望字典，实际为: {type(release).__name__}, url: {url}",
+                )
+                invalid_entry_count += 1
+                continue
+
+            missing_fields = [
+                field for field in required_fields if field not in release
+            ]
+            if missing_fields:
+                logger.warning(
+                    f"版本信息第 {idx} 项缺少字段: {missing_fields}, url: {url}",
+                )
+                invalid_entry_count += 1
+                continue
+
+            normalized.append(
+                {
+                    "version": release["name"] or release["tag_name"],
+                    "published_at": release["published_at"],
+                    "body": release["body"],
+                    "tag_name": release["tag_name"],
+                    "zipball_url": release["zipball_url"],
+                },
+            )
+
+        if invalid_entry_count:
+            logger.warning(
+                f"版本信息存在 {invalid_entry_count} 条无效数据，已跳过，url: {url}",
+            )
+
+        if not normalized:
+            raise FetchReleaseError(
+                "版本信息全部无效",
+                url=url,
+                detail=f"invalid_entries={invalid_entry_count}, total_entries={len(releases)}",
+            )
+
+        return normalized
+
+    async def fetch_release_info(self, url: str) -> list:
         """请求版本信息。
         返回一个列表，每个元素是一个字典，包含版本号、发布时间、更新内容、commit hash等信息。
         """
@@ -61,46 +165,31 @@ class RepoZipUpdator:
                     logger.error(
                         f"请求 {url} 失败，状态码: {response.status}, 内容: {text}",
                     )
-                    raise Exception(f"请求失败，状态码: {response.status}")
+                    raise FetchReleaseError(
+                        "请求失败",
+                        url=url,
+                        status_code=response.status,
+                        detail=text[:500],
+                    )
                 result = await response.json()
-            if not result:
-                return []
-            # if latest:
-            #     ret = self.github_api_release_parser([result[0]])
-            # else:
-            #     ret = self.github_api_release_parser(result)
-            ret = []
-            for release in result:
-                ret.append(
-                    {
-                        "version": release["name"],
-                        "published_at": release["published_at"],
-                        "body": release["body"],
-                        "tag_name": release["tag_name"],
-                        "zipball_url": release["zipball_url"],
-                    },
-                )
-        except Exception as e:
-            logger.error(f"解析版本信息时发生异常: {e}")
-            raise Exception("解析版本信息失败")
-        return ret
-
-    def github_api_release_parser(self, releases: list) -> list:
-        """解析 GitHub API 返回的 releases 信息。
-        返回一个列表，每个元素是一个字典，包含版本号、发布时间、更新内容、commit hash等信息。
-        """
-        ret = []
-        for release in releases:
-            ret.append(
-                {
-                    "version": release["name"],
-                    "published_at": release["published_at"],
-                    "body": release["body"],
-                    "tag_name": release["tag_name"],
-                    "zipball_url": release["zipball_url"],
-                },
+        except FetchReleaseError:
+            raise
+        except (
+            TimeoutError,
+            aiohttp.ClientError,
+            JSONDecodeError,
+        ) as e:
+            logger.error(
+                "解析版本信息时发生异常。"
+                f"url={url}, error_type={type(e).__name__}, detail={e}",
             )
-        return ret
+            raise FetchReleaseError(
+                "解析版本信息失败",
+                url=url,
+                detail=f"{type(e).__name__}: {e}",
+            ) from e
+
+        return self._normalize_release_payload(result, url)
 
     def unzip(self) -> NoReturn:
         raise NotImplementedError
@@ -119,25 +208,33 @@ class RepoZipUpdator:
         consider_prerelease: bool = True,
     ) -> ReleaseInfo | None:
         update_data = await self.fetch_release_info(url)
+        if not update_data:
+            return None
 
+        tag_name = ""
         sel_release_data = None
         if consider_prerelease:
             tag_name = update_data[0]["tag_name"]
             sel_release_data = update_data[0]
         else:
             for data in update_data:
-                # 跳过带有 alpha、beta 等预发布标签的版本
-                if re.search(
-                    r"[\-_.]?(alpha|beta|rc|dev)[\-_.]?\d*$",
-                    data["tag_name"],
-                    re.IGNORECASE,
-                ):
+                # 跳过带有 alpha、beta、nightly 等预发布标签的版本
+                if PRERELEASE_TAG_REGEX.search(data["tag_name"]):
                     continue
                 tag_name = data["tag_name"]
                 sel_release_data = data
                 break
 
-        if not sel_release_data or not tag_name:
+        if sel_release_data is None:
+            if not consider_prerelease:
+                logger.info(
+                    "当前仅有预发布版本，consider_prerelease=False，跳过更新检查。"
+                )
+            else:
+                logger.error("未找到合适的发布版本")
+            return None
+
+        if not tag_name:
             logger.error("未找到合适的发布版本")
             return None
 
