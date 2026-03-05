@@ -335,7 +335,9 @@ class ProviderManager:
             self.curr_tts_provider_inst = self.tts_provider_insts[0]
 
         try:
-            strict_mcp_init = os.getenv("ASTRBOT_MCP_INIT_STRICT", "").strip().lower() in {
+            strict_mcp_init = os.getenv(
+                "ASTRBOT_MCP_INIT_STRICT", ""
+            ).strip().lower() in {
                 "1",
                 "true",
                 "yes",
