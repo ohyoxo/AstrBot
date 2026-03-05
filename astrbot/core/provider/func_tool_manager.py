@@ -411,7 +411,7 @@ class FunctionToolManager:
                     name=name,
                     cfg=cfg,
                     shutdown_event=shutdown_event,
-                    timeout_seconds=init_timeout_value,
+                    timeout=init_timeout_value,
                 ),
                 name=f"mcp-init:{name}",
             )
